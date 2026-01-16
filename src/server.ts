@@ -148,6 +148,56 @@ app.post('/api/page/:pageId/append', async (req, res) => {
   }
 });
 
+// Endpoint pour ajouter du contenu formaté (même format que create-course)
+app.post('/api/page/:pageId/append-content', async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const { content } = req.body;
+    
+    if (!content || !Array.isArray(content)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing or invalid content array'
+      });
+    }
+
+    debugLog('APPEND_CONTENT', { pageId, contentCount: content.length });
+
+    // Convertir le contenu en blocs Notion
+    const children: any[] = [];
+    for (const item of content as CourseContent[]) {
+      const result = buildCourseBlock(item);
+      if (result !== null) {
+        if (Array.isArray(result)) {
+          children.push(...blocks.filterValidBlocks(result));
+        } else {
+          children.push(result);
+        }
+      }
+    }
+
+    const validChildren = blocks.filterValidBlocks(children);
+    
+    if (validChildren.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid blocks generated from content'
+      });
+    }
+
+    await notion.appendBlocks(pageId, validChildren);
+    
+    res.json({ 
+      success: true, 
+      message: 'Content appended successfully',
+      blocksAdded: validChildren.length
+    });
+  } catch (error: any) {
+    console.error('Error appending content:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 
 // ==================== COURSE TYPES ====================
