@@ -768,8 +768,9 @@ export function step(number: number, title: string, description?: string, childr
 
 // Template: Bloc exercice - emoji déjà géré
 export function exercice(title: string, instructions: string[], solution?: string) {
-  // Ne pas ajouter ✏️ dans le titre si le type le fait déjà
-  const cleanTitle = cleanLeadingEmoji(title);
+  // Ne pas ajouter ✏️ dans le titre, enlever "Exercice:" si présent
+  let cleanTitle = cleanLeadingEmoji(title);
+  cleanTitle = cleanTitle.replace(/^Exercice\s*:\s*/i, '').trim();
   const cleanInstructions = instructions.map(i => i.trim()).filter(i => i.length > 0);
   
   const children: any[] = cleanInstructions.map(i => bulletedListItem(i));
@@ -872,8 +873,9 @@ export function quickQuiz(question: string, options: string[], correctIndex: num
     correctIndex = 0;
   }
   
-  // Nettoyer la question (enlever emoji 🧠 si présent)
-  const cleanQuestion = cleanLeadingEmoji(question);
+  // Nettoyer la question (enlever emoji 🧠 et "Quiz:" si présent)
+  let cleanQuestion = cleanLeadingEmoji(question);
+  cleanQuestion = cleanQuestion.replace(/^Quiz\s*:\s*/i, '').trim();
   const cleanOptions = options.map(opt => opt.trim());
   
   return callout([richText('Quiz: ', { bold: true }), richText(cleanQuestion)], {
