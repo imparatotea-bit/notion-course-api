@@ -134,11 +134,47 @@ app.patch('/api/page/:pageId', async (req, res) => {
 app.post('/api/page/:pageId/append', async (req, res) => {
   try {
     const { pageId } = req.params;
-    const { blocks: blocksData } = req.body;
+    const { blocks: blocksData, content } = req.body;
+    
+    // Si content est fourni, rediriger vers la logique append-content
+    if (content && Array.isArray(content)) {
+      debugLog('APPEND_REDIRECT', { pageId, contentCount: content.length });
+      
+      const children: any[] = [];
+      for (const item of content as CourseContent[]) {
+        const result = buildCourseBlock(item);
+        if (result !== null) {
+          if (Array.isArray(result)) {
+            children.push(...blocks.filterValidBlocks(result));
+          } else {
+            children.push(result);
+          }
+        }
+      }
+
+      const validChildren = blocks.filterValidBlocks(children);
+      
+      if (validChildren.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No valid blocks generated from content'
+        });
+      }
+
+      await notion.appendBlocks(pageId, validChildren);
+      
+      return res.json({ 
+        success: true, 
+        message: 'Content appended successfully',
+        blocksAdded: validChildren.length
+      });
+    }
+    
+    // Sinon, utiliser blocks (blocs Notion bruts)
     if (!blocksData || !Array.isArray(blocksData)) {
       return res.status(400).json({
         success: false,
-        error: 'Missing or invalid blocks array'
+        error: 'Missing blocks or content array. Use "content" for formatted blocks or "blocks" for raw Notion blocks.'
       });
     }
     await notion.appendBlocks(pageId, blocksData);

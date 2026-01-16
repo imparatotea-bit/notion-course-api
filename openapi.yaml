@@ -115,6 +115,66 @@ paths:
     post:
       operationId: appendContent
       summary: Ajouter du contenu formaté à une page existante
+      description: Ajoute des blocs formatés (paragraph, info, quiz, etc.) à une page.
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: array
+                  description: Array de blocs au format simplifié
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      text:
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          type: string
+                      code:
+                        type: string
+                      language:
+                        type: string
+                      question:
+                        type: string
+                      options:
+                        type: array
+                        items:
+                          type: string
+                      correctIndex:
+                        type: integer
+                      term:
+                        type: string
+                      definition:
+                        type: string
+                      stepNumber:
+                        type: integer
+                      instructions:
+                        type: array
+                        items:
+                          type: string
+                      solution:
+                        type: string
+                      minutes:
+                        type: integer
+      responses:
+        '200':
+          description: Contenu ajouté avec nombre de blocs
+    post:
+      operationId: appendContent
+      summary: Ajouter du contenu formaté à une page existante
       description: Utilise le même format que create-course. Idéal pour enrichir une page.
       parameters:
         - name: pageId
