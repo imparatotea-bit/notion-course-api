@@ -73,42 +73,47 @@ export class NotionAPI {
     }
   }
 
-  async search(query?: string): Promise<(NotionPage | NotionDatabase)[]> {
+  async search(query?: string, limit: number = 20): Promise<(NotionPage | NotionDatabase)[]> {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await this.client.search({
       query,
-      sort: { direction: 'descending', timestamp: 'last_edited_time' }
+      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+      page_size: Math.min(limit, 100)
     });
 
-    return response.results.map(item => this.formatPageOrDatabase(item));
+    return response.results.slice(0, limit).map(item => this.formatPageOrDatabase(item));
   }
 
-  async searchPages(query?: string): Promise<NotionPage[]> {
+  async searchPages(query?: string, limit: number = 20): Promise<NotionPage[]> {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await this.client.search({
       query,
       filter: { property: 'object', value: 'page' },
-      sort: { direction: 'descending', timestamp: 'last_edited_time' }
+      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+      page_size: Math.min(limit, 100)
     });
 
     return response.results
       .filter(item => item.object === 'page')
+      .slice(0, limit)
       .map(item => this.formatPage(item));
   }
 
-  async searchDatabases(query?: string): Promise<NotionDatabase[]> {
+  async searchDatabases(query?: string, limit: number = 20): Promise<NotionDatabase[]> {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await this.client.search({
       query,
       filter: { property: 'object', value: 'database' },
-      sort: { direction: 'descending', timestamp: 'last_edited_time' }
+      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+      page_size: Math.min(limit, 100)
     });
 
     return response.results
       .filter(item => item.object === 'database')
+      .slice(0, limit)
       .map(item => this.formatDatabase(item));
   }
 

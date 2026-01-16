@@ -1,170 +1,10 @@
 openapi: 3.1.0
 info:
   title: Notion Course Creator API
-  description: |
-    API complète pour créer des cours design dans Notion depuis ChatGPT.
-    Utilise l'API Notion 2025-09-03 avec tous les types de blocs.
-    Le token Notion est configuré côté serveur (pas d'auth requise côté client).
+  description: API pour créer des cours dans Notion depuis ChatGPT.
   version: 2.0.0
 servers:
-  - url: https://YOUR-DEPLOYED-URL.com
-    description: Production server
-
-components:
-  schemas:
-    NotionPage:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        url:
-          type: string
-        created_time:
-          type: string
-        last_edited_time:
-          type: string
-
-    CourseContent:
-      type: object
-      description: "Un bloc de contenu pour le cours"
-      properties:
-        type:
-          type: string
-          enum:
-            - paragraph
-            - heading1
-            - heading2
-            - heading3
-            - quote
-            - callout
-            - info
-            - warning
-            - tip
-            - danger
-            - code
-            - equation
-            - codeWithExplanation
-            - bullet
-            - bullets
-            - numbered
-            - numberedList
-            - todo
-            - todoList
-            - toggle
-            - image
-            - video
-            - audio
-            - pdf
-            - embed
-            - bookmark
-            - divider
-            - table
-            - comparison
-            - definition
-            - step
-            - exercice
-            - quiz
-            - summary
-            - objectives
-            - prerequisites
-            - estimatedTime
-        text:
-          type: string
-        items:
-          type: array
-          items:
-            type: string
-        code:
-          type: string
-        language:
-          type: string
-        caption:
-          type: string
-        url:
-          type: string
-        icon:
-          type: string
-        color:
-          type: string
-        question:
-          type: string
-        options:
-          type: array
-          items:
-            type: string
-        correctIndex:
-          type: integer
-        term:
-          type: string
-        definition:
-          type: string
-        stepNumber:
-          type: integer
-        instructions:
-          type: array
-          items:
-            type: string
-        solution:
-          type: string
-        minutes:
-          type: integer
-        rows:
-          type: array
-          items:
-            type: array
-            items:
-              type: string
-        left:
-          type: object
-          properties:
-            title:
-              type: string
-            items:
-              type: array
-              items:
-                type: string
-        right:
-          type: object
-          properties:
-            title:
-              type: string
-            items:
-              type: array
-              items:
-                type: string
-        explanations:
-          type: array
-          items:
-            type: object
-            properties:
-              line:
-                type: string
-              explanation:
-                type: string
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/CourseContent'
-
-    CourseSection:
-      type: object
-      required: [title, content]
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        color:
-          type: string
-          enum: [default, gray, brown, orange, yellow, green, blue, purple, pink, red]
-        toggleable:
-          type: boolean
-        content:
-          type: array
-          items:
-            $ref: '#/components/schemas/CourseContent'
+  - url: https://notion-course-api.onrender.com
 
 paths:
   /health:
@@ -187,7 +27,6 @@ paths:
               properties:
                 query:
                   type: string
-                  description: Terme de recherche (optionnel)
       responses:
         '200':
           description: Résultats de recherche
@@ -239,7 +78,7 @@ paths:
           description: Page Notion
     patch:
       operationId: updatePage
-      summary: Mettre à jour les propriétés d'une page
+      summary: Mettre à jour une page
       parameters:
         - name: pageId
           in: path
@@ -275,7 +114,7 @@ paths:
   /api/page/{pageId}/append:
     post:
       operationId: appendBlocks
-      summary: Ajouter du contenu à une page existante
+      summary: Ajouter du contenu à une page
       parameters:
         - name: pageId
           in: path
@@ -314,7 +153,7 @@ paths:
   /api/create-simple-page:
     post:
       operationId: createSimplePage
-      summary: Créer une page simple avec titre et contenu texte
+      summary: Créer une page simple
       requestBody:
         content:
           application/json:
@@ -324,12 +163,10 @@ paths:
               properties:
                 parentId:
                   type: string
-                  description: ID de la page ou database parent
                 title:
                   type: string
                 content:
                   type: string
-                  description: Contenu texte (optionnel)
       responses:
         '200':
           description: Page créée
@@ -337,10 +174,8 @@ paths:
   /api/create-course:
     post:
       operationId: createCourse
-      summary: Créer un cours complet et design dans Notion
-      description: |
-        Crée un cours structuré avec table des matières, sections, et tous types de blocs.
-        Voir /api/block-types pour la liste complète des types disponibles.
+      summary: Créer un cours complet dans Notion
+      description: Crée un cours avec sections et blocs. Appeler /api/block-types pour voir les types disponibles.
       requestBody:
         content:
           application/json:
@@ -350,76 +185,88 @@ paths:
               properties:
                 parentId:
                   type: string
-                  description: ID de la page ou database parent
+                  description: ID de la page parent Notion
                 title:
                   type: string
-                  description: Titre du cours
                 icon:
                   type: string
-                  description: Emoji pour l'icône (ex:📘)
+                  description: Emoji (ex 📘)
                 cover:
                   type: string
-                  description: URL de l'image de couverture
+                  description: URL image de couverture
                 description:
                   type: string
-                  description: Description du cours
                 estimatedTime:
                   type: integer
-                  description: Temps estimé en minutes
+                  description: Minutes
                 prerequisites:
                   type: array
                   items:
                     type: string
-                  description: Liste des prérequis
                 objectives:
                   type: array
                   items:
                     type: string
-                  description: Objectifs d'apprentissage
                 sections:
                   type: array
                   items:
-                    $ref: '#/components/schemas/CourseSection'
-            examples:
-              coursTypeScript:
-                summary: Exemple de cours TypeScript
-                value:
-                  parentId: "abc123"
-                  title: "Introduction à TypeScript"
-                  icon: "📘"
-                  description: "Apprenez TypeScript de zéro!"
-                  estimatedTime: 60
-                  prerequisites:
-                    - "JavaScript ES6"
-                    - "Node.js installé"
-                  objectives:
-                    - "Comprendre les types"
-                    - "Créer des interfaces"
-                  sections:
-                    - title: "Chapitre 1: Les bases"
-                      color: "blue"
+                    type: object
+                    required: [title, content]
+                    properties:
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      color:
+                        type: string
                       content:
-                        - type: "info"
-                          text: "TypeScript ajoute des types à JavaScript"
-                        - type: "code"
-                          code: "const x: number = 5;"
-                          language: "typescript"
-                        - type: "quiz"
-                          question: "TypeScript compile vers?"
-                          options: ["Java", "JavaScript", "Python"]
-                          correctIndex: 1
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            text:
+                              type: string
+                            items:
+                              type: array
+                              items:
+                                type: string
+                            code:
+                              type: string
+                            language:
+                              type: string
+                            url:
+                              type: string
+                            icon:
+                              type: string
+                            color:
+                              type: string
+                            question:
+                              type: string
+                            options:
+                              type: array
+                              items:
+                                type: string
+                            correctIndex:
+                              type: integer
+                            term:
+                              type: string
+                            definition:
+                              type: string
+                            stepNumber:
+                              type: integer
+                            instructions:
+                              type: array
+                              items:
+                                type: string
+                            solution:
+                              type: string
+                            minutes:
+                              type: integer
       responses:
         '200':
-          description: Cours créé avec succès
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  page:
-                    $ref: '#/components/schemas/NotionPage'
+          description: Cours créé
 
   /api/block-types:
     get:
@@ -427,4 +274,4 @@ paths:
       summary: Liste des types de blocs disponibles avec exemples
       responses:
         '200':
-          description: Types de blocs et exemples d'utilisation
+          description: Types de blocs et exemples
