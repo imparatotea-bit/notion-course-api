@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Notion Course Creator API
-  description: API pour créer des cours dans Notion depuis ChatGPT.
-  version: 2.0.0
+  description: API pour créer des cours structurés dans Notion.
+  version: 2.1.0
 servers:
   - url: https://notion-course-api.onrender.com
 
@@ -150,32 +150,55 @@ paths:
         '200':
           description: Database Notion
 
-  /api/create-simple-page:
+  /api/validate-course:
     post:
-      operationId: createSimplePage
-      summary: Créer une page simple
+      operationId: validateCourse
+      summary: Valider un cours avant création
+      description: Vérifie la structure et retourne erreurs/warnings sans créer.
       requestBody:
         content:
           application/json:
             schema:
               type: object
-              required: [parentId, title]
+              required: [title, sections]
               properties:
-                parentId:
-                  type: string
                 title:
                   type: string
-                content:
-                  type: string
+                sections:
+                  type: array
+                  items:
+                    type: object
       responses:
         '200':
-          description: Page créée
+          description: Résultat de validation
+
+  /api/dry-run:
+    post:
+      operationId: dryRunCourse
+      summary: Tester la génération d'un cours
+      description: Simule la création et retourne les stats sans créer.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, sections]
+              properties:
+                title:
+                  type: string
+                sections:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Analyse complète
 
   /api/create-course:
     post:
       operationId: createCourse
       summary: Créer un cours complet dans Notion
-      description: Crée un cours avec sections et blocs. Appeler /api/block-types pour voir les types disponibles.
+      description: Crée un cours avec sections. Supporte markdown dans le texte.
       requestBody:
         content:
           application/json:
@@ -190,15 +213,12 @@ paths:
                   type: string
                 icon:
                   type: string
-                  description: Emoji (ex 📘)
                 cover:
                   type: string
-                  description: URL image de couverture
                 description:
                   type: string
                 estimatedTime:
                   type: integer
-                  description: Minutes
                 prerequisites:
                   type: array
                   items:
@@ -219,6 +239,8 @@ paths:
                         type: string
                       color:
                         type: string
+                      toggleable:
+                        type: boolean
                       content:
                         type: array
                         items:
@@ -235,6 +257,8 @@ paths:
                             code:
                               type: string
                             language:
+                              type: string
+                            caption:
                               type: string
                             url:
                               type: string
@@ -264,9 +288,29 @@ paths:
                               type: string
                             minutes:
                               type: integer
+                            explanations:
+                              type: array
+                              items:
+                                type: object
+                            left:
+                              type: object
+                            right:
+                              type: object
+                            rows:
+                              type: array
+                              items:
+                                type: array
+                                items:
+                                  type: string
+                            children:
+                              type: array
+                              items:
+                                type: object
       responses:
         '200':
           description: Cours créé
+        '400':
+          description: Erreur de validation
 
   /api/block-types:
     get:

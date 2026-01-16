@@ -13,6 +13,13 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
+const DEBUG = process.env.DEBUG === 'true';
+
+function debugLog(section: string, data: any) {
+  if (DEBUG) {
+    console.log(`[DEBUG ${section}]`, JSON.stringify(data, null, 2));
+  }
+}
 
 if (!NOTION_TOKEN) {
   console.error('❌ NOTION_TOKEN manquant dans .env');
@@ -26,15 +33,15 @@ const notion = new NotionAPI(NOTION_TOKEN);
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    version: '2.0.0',
+    version: '2.1.0',
     notionApiVersion: '2025-09-03',
+    features: ['validation', 'emoji-cleanup', 'url-validation'],
     timestamp: new Date().toISOString()
   });
 });
 
 // ==================== SEARCH ENDPOINTS ====================
 
-// Rechercher dans Notion (pages + databases)
 app.post('/api/search', async (req, res) => {
   try {
     const { query } = req.body;
@@ -45,7 +52,6 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Rechercher uniquement des pages
 app.post('/api/search-pages', async (req, res) => {
   try {
     const { query } = req.body;
@@ -56,7 +62,6 @@ app.post('/api/search-pages', async (req, res) => {
   }
 });
 
-// Rechercher uniquement des databases
 app.post('/api/search-databases', async (req, res) => {
   try {
     const { query } = req.body;
@@ -69,7 +74,6 @@ app.post('/api/search-databases', async (req, res) => {
 
 // ==================== PAGE ENDPOINTS ====================
 
-// Récupérer une page spécifique
 app.get('/api/page/:pageId', async (req, res) => {
   try {
     const { pageId } = req.params;
@@ -80,7 +84,6 @@ app.get('/api/page/:pageId', async (req, res) => {
   }
 });
 
-// Récupérer le contenu (blocs) d'une page
 app.get('/api/page/:pageId/blocks', async (req, res) => {
   try {
     const { pageId } = req.params;
@@ -91,7 +94,6 @@ app.get('/api/page/:pageId/blocks', async (req, res) => {
   }
 });
 
-// Récupérer une database
 app.get('/api/database/:databaseId', async (req, res) => {
   try {
     const { databaseId } = req.params;
@@ -102,7 +104,6 @@ app.get('/api/database/:databaseId', async (req, res) => {
   }
 });
 
-// Créer une nouvelle page (API raw)
 app.post('/api/create-page', async (req, res) => {
   try {
     const { parent, properties, children } = req.body;
@@ -119,7 +120,6 @@ app.post('/api/create-page', async (req, res) => {
   }
 });
 
-// Mettre à jour une page
 app.patch('/api/page/:pageId', async (req, res) => {
   try {
     const { pageId } = req.params;
@@ -131,7 +131,6 @@ app.patch('/api/page/:pageId', async (req, res) => {
   }
 });
 
-// Ajouter du contenu (blocs) à une page
 app.post('/api/page/:pageId/append', async (req, res) => {
   try {
     const { pageId } = req.params;
@@ -149,46 +148,9 @@ app.post('/api/page/:pageId/append', async (req, res) => {
   }
 });
 
-// ==================== HELPER ENDPOINTS ====================
 
-// Helper: Créer une page simple avec titre et contenu texte
-app.post('/api/create-simple-page', async (req, res) => {
-  try {
-    const { parentId, title, content } = req.body;
-    if (!parentId || !title) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: parentId and title'
-      });
-    }
 
-    const parent = parentId.length === 32 && !parentId.includes('-')
-      ? { database_id: parentId }
-      : { page_id: parentId };
-
-    const properties: any = {
-      title: { title: [{ text: { content: title } }] }
-    };
-
-    if ('database_id' in parent) {
-      properties.Name = properties.title;
-      delete properties.title;
-    }
-
-    const children = content ? [{
-      object: 'block',
-      type: 'paragraph',
-      paragraph: { rich_text: [{ type: 'text', text: { content } }] }
-    }] : undefined;
-
-    const page = await notion.createPage({ parent, properties, children });
-    res.json({ success: true, page });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ==================== COURSE CREATION ENDPOINT ====================
+// ==================== COURSE TYPES ====================
 
 interface CourseContent {
   type: string;
@@ -229,9 +191,10 @@ interface CourseSection {
 }
 
 // Fonction pour convertir le contenu du cours en blocs Notion
-function buildCourseBlock(item: CourseContent): any | any[] {
+function buildCourseBlock(item: CourseContent): any | any[] | null {
+  debugLog('BUILD_BLOCK', { type: item.type });
+  
   switch (item.type) {
-    // Text blocks
     case 'paragraph':
       return blocks.paragraph(item.text || '');
     case 'heading1':
@@ -245,7 +208,6 @@ function buildCourseBlock(item: CourseContent): any | any[] {
     case 'callout':
       return blocks.callout(item.text || '', { icon: item.icon, color: item.color as any });
 
-    // Notes spéciales
     case 'info':
       return blocks.noteImportante(item.text || '', 'info');
     case 'warning':
@@ -255,7 +217,6 @@ function buildCourseBlock(item: CourseContent): any | any[] {
     case 'danger':
       return blocks.noteImportante(item.text || '', 'danger');
 
-    // Code
     case 'code':
       return blocks.code(item.code || item.text || '', (item.language || 'javascript') as any, item.caption);
     case 'equation':
@@ -263,7 +224,6 @@ function buildCourseBlock(item: CourseContent): any | any[] {
     case 'codeWithExplanation':
       return blocks.codeWithExplanation(item.code || '', (item.language || 'javascript') as any, item.explanations || []);
 
-    // Lists
     case 'bullet':
     case 'bulletedListItem':
       return blocks.bulletedListItem(item.text || '');
@@ -279,10 +239,12 @@ function buildCourseBlock(item: CourseContent): any | any[] {
     case 'todoList':
       return (item.items || []).map(i => blocks.todo(i, false));
     case 'toggle':
-      const toggleChildren = (item.children || []).flatMap(c => buildCourseBlock(c));
-      return blocks.toggle(item.text || '', toggleChildren, { color: item.color as any });
+      const toggleChildren = (item.children || []).flatMap(c => {
+        const result = buildCourseBlock(c);
+        return result ? (Array.isArray(result) ? result : [result]) : [];
+      });
+      return blocks.toggle(item.text || '', blocks.filterValidBlocks(toggleChildren), { color: item.color as any });
 
-    // Media
     case 'image':
       return blocks.image(item.url || '', item.caption);
     case 'video':
@@ -294,12 +256,9 @@ function buildCourseBlock(item: CourseContent): any | any[] {
     case 'embed':
       return blocks.embed(item.url || '');
     case 'bookmark':
-      return blocks.bookmark(item.url || '', item.caption);
     case 'linkPreview':
-      // L'API ne supporte pas link_preview en création, on utilise bookmark
-      return blocks.bookmark(item.url || '');
+      return blocks.bookmark(item.url || '', item.caption);
 
-    // Layout
     case 'divider':
       return blocks.divider();
     case 'tableOfContents':
@@ -318,7 +277,6 @@ function buildCourseBlock(item: CourseContent): any | any[] {
       }
       return blocks.divider();
 
-    // Course templates
     case 'definition':
       return blocks.definition(item.term || '', item.definition || item.text || '');
     case 'step':
@@ -341,11 +299,119 @@ function buildCourseBlock(item: CourseContent): any | any[] {
       return blocks.estimatedTime(item.minutes || 30);
 
     default:
+      console.warn(`Type de bloc non reconnu: ${item.type}`);
       return blocks.paragraph(item.text || `[Type non reconnu: ${item.type}]`);
   }
 }
 
-// Créer un cours complet avec structure riche
+
+// ==================== VALIDATION ENDPOINT ====================
+
+app.post('/api/validate-course', async (req, res) => {
+  try {
+    const courseData = req.body;
+    debugLog('VALIDATE_REQUEST', courseData);
+    
+    const validation = blocks.validateCourse(courseData);
+    
+    // Compter les types de blocs
+    const stats = {
+      totalSections: courseData.sections?.length || 0,
+      totalBlocks: 0,
+      blockTypes: {} as Record<string, number>
+    };
+    
+    courseData.sections?.forEach((section: CourseSection) => {
+      section.content?.forEach((item: CourseContent) => {
+        stats.totalBlocks++;
+        stats.blockTypes[item.type] = (stats.blockTypes[item.type] || 0) + 1;
+      });
+    });
+    
+    const recommendations = blocks.generateRecommendations(stats);
+    
+    res.json({
+      success: true,
+      valid: validation.valid,
+      errors: validation.errors,
+      warnings: validation.warnings,
+      stats,
+      recommendations
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== DRY RUN ENDPOINT ====================
+
+app.post('/api/dry-run', async (req, res) => {
+  try {
+    const courseData = req.body;
+    debugLog('DRY_RUN_REQUEST', courseData);
+    
+    const analysis = {
+      valid: true,
+      errors: [] as string[],
+      warnings: [] as string[],
+      stats: {
+        sections: courseData.sections?.length || 0,
+        totalBlocks: 0,
+        blockTypes: {} as Record<string, number>
+      },
+      generatedBlocks: 0
+    };
+    
+    // Analyser et tester la génération de chaque section
+    courseData.sections?.forEach((section: CourseSection, idx: number) => {
+      if (!section.title) {
+        analysis.errors.push(`Section ${idx + 1}: Titre manquant`);
+        analysis.valid = false;
+      }
+      
+      section.content?.forEach((item: CourseContent) => {
+        analysis.stats.totalBlocks++;
+        analysis.stats.blockTypes[item.type] = (analysis.stats.blockTypes[item.type] || 0) + 1;
+        
+        // Tester la génération du bloc
+        try {
+          const result = buildCourseBlock(item);
+          if (result) {
+            analysis.generatedBlocks += Array.isArray(result) ? result.length : 1;
+          }
+        } catch (e: any) {
+          analysis.errors.push(`Section ${idx + 1}: Erreur génération bloc ${item.type} - ${e.message}`);
+          analysis.valid = false;
+        }
+        
+        // Vérifications spécifiques
+        if (item.type === 'quiz' || item.type === 'quickQuiz') {
+          if (!item.options || item.options.length < 2) {
+            analysis.warnings.push(`Section ${idx + 1}: Quiz avec trop peu d'options`);
+          }
+          if (item.correctIndex !== undefined && item.correctIndex >= (item.options?.length || 0)) {
+            analysis.errors.push(`Section ${idx + 1}: Quiz correctIndex invalide`);
+            analysis.valid = false;
+          }
+        }
+        
+        if ((item.type === 'image' || item.type === 'video') && item.url) {
+          if (!blocks.isValidUrl(item.url)) {
+            analysis.errors.push(`Section ${idx + 1}: URL invalide pour ${item.type}`);
+            analysis.valid = false;
+          }
+        }
+      });
+    });
+    
+    res.json(analysis);
+  } catch (error: any) {
+    res.status(500).json({ valid: false, error: error.message });
+  }
+});
+
+// ==================== CREATE COURSE ENDPOINT ====================
+
 app.post('/api/create-course', async (req, res) => {
   try {
     const {
@@ -353,10 +419,23 @@ app.post('/api/create-course', async (req, res) => {
       estimatedTime, prerequisites, objectives, sections
     } = req.body;
 
+    debugLog('CREATE_COURSE_REQUEST', { parentId, title, sectionsCount: sections?.length });
+
     if (!parentId || !title || !sections) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: parentId, title, sections'
+      });
+    }
+
+    // Valider le cours avant création
+    const validation = blocks.validateCourse(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: validation.errors,
+        warnings: validation.warnings
       });
     }
 
@@ -419,30 +498,36 @@ app.post('/api/create-course', async (req, res) => {
       }));
 
       if (section.description) {
-        children.push(blocks.paragraph(section.description, { color: 'gray' }));
+        const descBlock = blocks.paragraph(section.description, { color: 'gray' });
+        if (descBlock) children.push(descBlock);
       }
 
-      // Ajouter le contenu de la section
+      // Ajouter le contenu de la section avec filtrage des blocs null
       for (const item of section.content) {
         const result = buildCourseBlock(item);
-        if (Array.isArray(result)) {
-          children.push(...result);
-        } else {
-          children.push(result);
+        if (result !== null) {
+          if (Array.isArray(result)) {
+            children.push(...blocks.filterValidBlocks(result));
+          } else {
+            children.push(result);
+          }
         }
       }
     }
 
     // Footer
     children.push(blocks.divider());
-    children.push(blocks.callout('🎉 Félicitations ! Vous avez terminé ce cours.', {
+    children.push(blocks.callout('Félicitations ! Vous avez terminé ce cours.', {
       icon: '🎉',
       color: 'green_background'
     }));
 
-    const pageData: any = { parent, properties, children };
+    // Filtrer tous les blocs null avant envoi
+    const validChildren = blocks.filterValidBlocks(children);
+    debugLog('CHILDREN_COUNT', { total: children.length, valid: validChildren.length });
 
-    // Ajouter icon et cover si fournis
+    const pageData: any = { parent, properties, children: validChildren };
+
     if (icon) {
       pageData.icon = { type: 'emoji', emoji: icon };
     }
@@ -450,10 +535,16 @@ app.post('/api/create-course', async (req, res) => {
       pageData.cover = { type: 'external', external: { url: cover } };
     }
 
-    // Utiliser directement l'API pour supporter icon/cover
     const page = await notion.createPageWithMeta(pageData);
 
-    res.json({ success: true, page });
+    res.json({ 
+      success: true, 
+      page,
+      stats: {
+        sectionsCreated: sections.length,
+        blocksCreated: validChildren.length
+      }
+    });
   } catch (error: any) {
     console.error('Error creating course:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -462,12 +553,12 @@ app.post('/api/create-course', async (req, res) => {
 
 // ==================== BLOCK TYPES INFO ====================
 
-// Helper: Obtenir les block builders disponibles
 app.get('/api/block-types', (_req, res) => {
   res.json({
     success: true,
-    version: '2.0.0',
+    version: '2.1.0',
     notionApiVersion: '2025-09-03',
+    features: ['validation', 'emoji-cleanup', 'url-validation'],
     blockTypes: {
       text: ['paragraph', 'heading1', 'heading2', 'heading3', 'quote', 'callout'],
       notes: ['info', 'warning', 'tip', 'danger'],
@@ -486,12 +577,17 @@ app.get('/api/block-types', (_req, res) => {
         'estimatedTime'
       ]
     },
+    importantNotes: {
+      emojis: 'Les types info, warning, tip, danger, definition, exercice, quiz, step ajoutent automatiquement leur emoji. NE PAS en ajouter dans le texte!',
+      validation: 'Utilisez /api/validate-course ou /api/dry-run avant de créer un cours',
+      urls: 'Les URLs sont validées automatiquement pour image, video, audio, pdf, embed, bookmark'
+    },
     examples: {
       paragraph: { type: 'paragraph', text: 'Texte du paragraphe' },
       heading1: { type: 'heading1', text: 'Titre principal', color: 'blue' },
       callout: { type: 'callout', text: 'Note importante', icon: '💡', color: 'yellow_background' },
-      info: { type: 'info', text: 'Information utile' },
-      warning: { type: 'warning', text: 'Attention à ceci!' },
+      info: { type: 'info', text: 'Information utile (emoji ℹ️ ajouté automatiquement)' },
+      warning: { type: 'warning', text: 'Attention à ceci! (emoji ⚠️ ajouté automatiquement)' },
       code: { type: 'code', code: 'console.log("Hello")', language: 'javascript', caption: 'Exemple' },
       codeWithExplanation: {
         type: 'codeWithExplanation',
@@ -506,9 +602,7 @@ app.get('/api/block-types', (_req, res) => {
       toggle: {
         type: 'toggle',
         text: 'Cliquez pour voir plus',
-        children: [
-          { type: 'paragraph', text: 'Contenu caché' }
-        ]
+        children: [{ type: 'paragraph', text: 'Contenu caché' }]
       },
       image: { type: 'image', url: 'https://example.com/image.jpg', caption: 'Description' },
       video: { type: 'video', url: 'https://youtube.com/watch?v=...', caption: 'Tutoriel vidéo' },
@@ -518,17 +612,17 @@ app.get('/api/block-types', (_req, res) => {
         left: { title: 'Avantages', items: ['Rapide', 'Simple'] },
         right: { title: 'Inconvénients', items: ['Coûteux', 'Complexe'] }
       },
-      definition: { type: 'definition', term: 'API', definition: 'Application Programming Interface' },
+      definition: { type: 'definition', term: 'API', definition: 'Application Programming Interface (emoji 📖 ajouté automatiquement)' },
       step: { type: 'step', stepNumber: 1, text: 'Installer les dépendances', caption: 'npm install' },
       exercice: {
         type: 'exercice',
-        text: 'Créer une fonction',
+        text: 'Créer une fonction (emoji ✏️ ajouté automatiquement)',
         instructions: ['Créer une fonction add', 'Elle prend 2 paramètres', 'Elle retourne leur somme'],
         solution: 'function add(a, b) { return a + b; }'
       },
       quiz: {
         type: 'quiz',
-        question: 'Quel langage est typé?',
+        question: 'Quel langage est typé? (emoji 🧠 ajouté automatiquement)',
         options: ['JavaScript', 'TypeScript', 'Python'],
         correctIndex: 1
       },
@@ -564,7 +658,10 @@ app.get('/api/block-types', (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Notion Course Creator API running on port ${PORT}`);
+  console.log(`🚀 Notion Course Creator API v2.1.0 running on port ${PORT}`);
   console.log(`📝 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 Block types: http://localhost:${PORT}/api/block-types`);
+  console.log(`✅ Validation: POST http://localhost:${PORT}/api/validate-course`);
+  console.log(`🧪 Dry run: POST http://localhost:${PORT}/api/dry-run`);
+  if (DEBUG) console.log(`🐛 Debug mode: ENABLED`);
 });
